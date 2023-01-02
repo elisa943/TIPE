@@ -1,0 +1,485 @@
+#load "graphics.cma";;
+open Graphics;;
+open Random;;
+
+(* Couleurs *) 
+let noir = rgb 0 0 0;;
+let blanc = rgb 250 250 250;;
+let bleu = rgb 88 113 167;;
+let noir_contour = rgb 13 1 3;;
+let rouge = rgb 224 8 3;;
+let vert = rgb 69 139 55;;
+let violet = rgb 69 67 150;;
+
+(* Exceptions *)
+exception Stop;;
+
+(* Types *)
+type direction = Ouest | Est | Nord | Sud | Null;;
+type sortie = SortieNord | SortieEst | SortieOuest | SortieNull;;
+type personne = {mutable x: int; mutable y:int; mutable vx: int; mutable vy: int; mutable etage:int; mutable s: sortie};;
+
+(* Variables Globales *)
+let coord_SortieNord = (9, 23);;
+let coord_SortieOuest = (0, 8);;
+let coord_SortieEst = (31, 8);;
+
+let coord_sortieNord = (225., 575.);;
+let coord_SortieOuest = (0., 200.);;
+let coord_SortieEst = (775., 200.);;
+
+
+			(* Fonctions *)
+
+(* Page d'accueil *)
+
+let page_accueil () = 
+	begin 
+	set_color violet;
+	fill_rect 0 0 800 600;
+	
+	set_color noir;
+	moveto 15 30;
+	set_text_size 15;
+	draw_string "Made by Elisa";
+	
+	moveto 75 500;
+	set_text_size 30;
+	draw_string "Simulation d'évacuation d'urgence";
+	
+	moveto 75 400;
+	set_text_size 25;
+	draw_string "Commandes :";
+	
+	moveto 60 350;
+	set_text_size 20;
+	draw_string "- Appuyez sur un chiffre k pour observer l'avancement de l'évacuation";
+	moveto 60 325;
+	draw_string "dans l'étage k";
+	moveto 60 300;
+	draw_string "- Appuyez sur espace pour démarrer la simulation";
+	end;;
+	
+(* Initialisation d'un étage *)
+let initialisation_etage () = 
+	begin
+	
+	(* background *)
+	set_color blanc;
+	fill_rect 0 0 800 600;
+	
+	(* quadrillage *) 
+	set_color noir_contour;
+	for i = 0 to 24 do 
+		begin
+			moveto 0 (25*i);
+			lineto 799 (25*i);
+		end;
+	done;
+	
+	for i = 0 to 32 do 
+		begin
+		(* lignes *)
+			moveto (25*i) 0;
+			lineto (25*i) 799;
+		end;
+	done;
+	
+	(* sortie *)
+	set_color vert;
+	fill_rect 200 575 75 25;
+	
+	(* appartements + portes*)
+	
+	set_color bleu;
+	fill_rect 0 250 200 350;
+	fill_rect 275 250 525 350;
+	fill_rect 0 0 800 175;
+	
+	set_color rouge;
+	moveto 200 275;
+	lineto 200 300;
+	moveto 200 425;
+	lineto 200 450;
+
+
+	
+	for i = 0 to 2 do
+		begin
+		set_color rouge;
+		moveto (175*i + 300) 250;
+		lineto (175*i + 325) 250;
+		end;
+	done;
+	
+	for i = 0 to 3 do
+		begin
+		set_color rouge;
+		moveto (i*200 + 25) 175;
+		lineto (i*200 + 50) 175;
+		end;
+	done;
+	
+	(* séparations d'appartements *)
+	set_color noir_contour;
+	moveto 0 425;
+	lineto 200 425;
+	
+	for i = 0 to 1 do
+		begin 
+			moveto (450 + 175*i) 250;
+			lineto (450 + 175*i) 800;
+			end;
+	done;
+	
+	for i = 1 to 3 do
+		begin 
+			moveto (200*i) 0;
+			lineto (200*i) 175;
+		end;
+	done;
+	
+	end;;
+
+	(* Fonctions de conversion *)
+
+let conversion_sorties n = match n with 
+	| 1 -> SortieNord
+	| 2 -> SortieOuest 
+	| 3 -> SortieEst
+	| _ -> SortieNull;;
+
+let coord_of_direction direction = match direction with 
+	| Ouest -> (-1, 0)
+	| Est -> (1, 0)
+	| Nord -> (0, 1)
+	| Sud -> (0, -1)
+	| _ -> (0, 0);;
+
+let conversion_clavier t = match t with 
+	| ' ' -> -1
+	| k -> (int_of_char k)-48;;
+	
+let coordonnees_sorties s = match s with
+	| SortieNord -> coord_SortieNord
+	| SortieEst -> coord_SortieEst
+	| SortieOuest -> coord_SortieOuest
+	| _ -> (0, 0);;
+	
+	
+	(* Fonctions d'affichage *)
+let affiche_sortie nombre_de_sortie = 
+	if nombre_de_sortie > 1 then
+		if nombre_de_sortie = 2 then 
+			begin
+			set_color vert;
+			fill_rect 0 175 25 75;
+			end
+		else
+			begin
+			set_color vert;
+			fill_rect 0 175 25 75;
+			fill_rect 775 175 25 75;
+			end; ();;
+
+let affiche_personne x y = (* affiche une personne*)
+	begin
+	set_color rouge;
+	fill_circle (x * 25 + 12) (y * 25 + 12) 9;
+	end;;
+	
+let rec affiche_personnes l = match l with (* affiche une liste de personne *)
+	| [] -> ()
+	| t::q -> begin affiche_personne t.x t.y; affiche_personnes q end;;
+
+let supprime_personne x y = (* supprime une personne *)
+	begin
+	set_color blanc;
+	fill_circle (x * 25 + 12) (y * 25 + 12) 9;
+	end;;
+
+let rec supprime_personnes l = match l with (* supprime une liste de personne *)
+	| [] -> ()
+	| t::q -> begin supprime_personne t.x t.y; supprime_personnes q end;;
+
+let affiche_etage liste_personnes = (* affiche etage + emplacement des personnes*)
+	begin initialisation_etage ();
+	affiche_personnes liste_personnes;
+	end;;
+
+	(* Fonctions de déplacement *)
+	
+let rec remplit_grille liste grille = match liste with (* prend une liste de personne et marque dans la grille leur emplacement *)
+	| [] -> grille
+	| t::q -> begin grille.(t.x).(t.y) <- true; remplit_grille q grille; end;;
+
+
+let deplacement_general grille_initiale grille_finale = (* la fonction prend en argument la grille indiquant l'emplacement initial et la grille indiquant l'emplacement final *) 
+	for i = 0 to 31 do
+		for j = 0 to 23 do
+			if grille_initiale.(i).(j) then supprime_personne i j
+		done;
+	done;
+	for i = 0 to 31 do
+		for j = 0 to 23 do
+			if grille_finale.(i).(j) then affiche_personne i j;
+		done;
+	done;;
+		
+let deplacement_individuel x y direction grille_finale =  (* *)
+	let (vx0, vy0) = coord_of_direction direction in
+			if grille_finale.(x+vx0).(y+vy0) then false
+			else begin grille_finale.(x+vx0).(y+vy0) <- true; true end;;
+		
+let distance pointA pointB = 
+	let xA, yA = pointA in 
+	let xB, yB = pointB in 
+	sqrt (float_of_int ((xA-xB)*(xA-xB) + (yA-yB)*(yA-yB)));;
+	
+let determination_direction_sortie x y = (* on suppose que les évacuants se dirigent vers la sortie la plus proche *)
+	let s = ref 1 in 
+	let dist_min = ref (distance (x, y) (coordonnees_sorties SortieNord)) in 
+	
+	if distance (x, y) (coordonnees_sorties SortieOuest) < !dist_min then
+		begin 
+		s := 2;
+		dist_min := distance (x, y) (coordonnees_sorties SortieOuest);
+		end;
+		
+	if distance (x, y) (coordonnees_sorties SortieEst) < !dist_min then 3
+	else !s;;
+
+
+let directions_privilegiees personne grille directions = (* renvoie un array des directions à privilégier *)
+	let sortie_choisie = personne.s in 
+	let (x_s, y_s) = coordonnees_sorties sortie_choisie in 
+	if x_s > personne.x then 
+		begin
+		directions.(0) <- Est;
+		directions.(2) <- Ouest;
+		end
+	else 
+		begin 
+		directions.(0) <- Ouest;
+		directions.(2) <- Est;
+		end;
+	if y_s > personne.y then 
+		begin
+		directions.(1) <- Nord;
+		directions.(3) <- Sud;
+		end
+	else 
+		begin
+		directions.(1) <- Sud;
+		directions.(3) <- Nord;
+		end;
+	directions;;
+
+let deplace_personne personne directions grille_finale = (* modifie la position d'une personne grâce à l'array des directions à privilégier *)
+	try 
+		for i = 0 to 3 do 
+		let (vx0, vy0) = coord_of_direction directions.(i) in
+			let dx = personne.x + vx0 in
+			let dy = personne.y + vy0 in 
+			
+			if not (collision_murs dx dy) && not (grille_finale.(dx).(dy)) then
+				begin
+				personne.x <- dx;
+				personne.y <- dy;
+				grille_finale.(dy).(dy) <- true;
+				raise Stop;
+				end
+		done;
+	with Stop -> ();;
+
+let deplace_personnes liste_personnes grille_initiale = (* modifie la position de toutes les personnes d'une liste grâce à la fonction précédente *)
+	let nombre_de_personnes = List.length liste_personnes in 
+	let directions_rassemblement = Array.make_matrix nombre_de_personnes 4 Null in 
+	let grille_finale = Array.make_matrix 32 24 false in
+	let rec aux l i = match l with 
+	| [] -> grille_finale
+	| t::q -> 
+		begin 
+		deplace_personne t (directions_privilegiees t grille_initiale (directions_rassemblement.(i))) grille_finale;
+		aux q (i+1);
+		end
+	in aux liste_personnes 0;;
+	
+	(* Fonctions de génération *)
+let rec genere_position_couloir grille_2D = (* génère un seul 2-uplet qui correspond à des coordonnées disponibles selon la grille *)
+	let x0 = (Random.int 30) + 1 in
+	if 7 < x0 && x0 < 11 then (* dans l'axe du couloir vertical *)
+			let y0 = (Random.int 16) + 7 in
+					if grille_2D.(x0).(y0) = false then (x0, y0)
+					else genere_position_couloir grille_2D
+	else let y0 = (Random.int 3) + 7 in
+					if grille_2D.(x0).(y0) = false then (x0, y0)
+					else genere_position_couloir grille_2D;;
+
+let genere_rassemblement_couloir grille_2D n niveau = (* génère un étage *)
+	let rec aux n liste_personnes = match n with
+	| 0 -> liste_personnes
+	| _ -> let (x0, y0) = genere_position_couloir grille_2D in
+	begin 
+			grille_2D.(x0).(y0) <- true;
+			aux (n-1) (List.cons({x = x0; y = y0; vx = 0; vy = 0; etage = niveau; s = SortieNull}) liste_personnes);
+	end;
+	in aux n [];;
+
+let genere_10_etages grille_3D nombre_de_personne = (* génère les 10 étages *)
+	let evacuants = Array.make 10 [] in
+	for i = 0 to 9 do
+			evacuants.(i) <- genere_rassemblement_couloir grille_3D.(i) nombre_de_personne i;
+	done;
+	evacuants;;
+
+(* Fonctions de vérification *)
+
+let collision_murs x y = 
+	if 8 <= x && x <= 10 then
+			if 7 <= y && y <= 9 
+					then true 
+			else false
+	else if 7 <= y && y <= 23 then true
+			 else false;;
+			 
+let arrivee_sortie1 x y = (* prend en compte que la sortie 1*)
+	if y = 23 then 
+			if 8 <= x && x <= 10 then true
+			else false 
+	else false;;
+
+let arrivee_sortie2 x y = (* prend en compte que la sortie 1*)
+	if x = 0 then 
+			if 7 <= y && y <= 9 then true
+			else false 
+	else false;;
+
+let arrivee_sortie3 x y = (* prend en compte que la sortie 1*)
+	if x = 31 then 
+			if 7 <= y && y <= 9 then true
+			else false 
+	else false;;
+	
+let arrivee_sortie_finale x y etage = 
+	if arrivee_sortie1 x y || arrivee_sortie2 x y || arrivee_sortie3 x y 
+			then if etage > 0 then false
+			else true
+	else false;;
+
+(* Fonctions de régulation *)
+
+
+
+
+
+	
+(* Fonction main *)
+
+let main () = 
+	let immeuble = Array.make 10 (Array.make_matrix 32 24 false) in
+	let evacuants = genere_10_etages immeuble 10 (* ne fonctionne pas au delà de 10 personnes/etage *) in
+	let sorties_ouvertes = [|true; false; false|] in 
+	let start = ref true in
+		begin
+			open_graph ":0";
+			resize_window 800 600;
+			
+			affiche_etage evacuants.(2);
+			
+			
+					end;; (*
+		while true do 
+				let toucheAppuyee = ref (key_pressed ()) in
+				if !toucheAppuyee then 
+						let touche = ref (read_key ()) in 
+						let touche_convertie = conversion_clavier !touche in
+								if touche_convertie = -1 then 
+									begin
+										start := true;
+										toucheAppuyee := false;
+									end
+								else if 0 <= touche_convertie && touche_convertie <= 9 then 
+									begin
+										affiche_etage evacuants.(touche_convertie);
+										toucheAppuyee := false
+									end
+								(* etage k *)
+								else toucheAppuyee := false; *)
+							
+
+		(* done *);;
+
+let deplacement_etage niveau liste_personnes immeuble = 
+	let grille_finale = deplace_personnes liste_personnes immeuble.(niveau) in
+		deplacement_general immeuble.(niveau) grille_finale;;
+(* PLAYGROUND *)
+
+
+main();;
+
+
+
+(* AUTRE VERSION SANS QUADRILLAGE *)
+
+
+let csteVitesse = 2. ;;
+let csteRayon = 5.;;
+
+type coords = {x0:float; y0:float};;
+type vecteur = {vx:float; vy:float};;
+type personne = {mutable x:float; mutable y:float; mutable etage:int; sortie:int};;
+
+let genere_coords () = (float_of_int(Random.int 800), float_of_int(Random.int 600));;
+
+let genere_sortie () = (Random.int 3) + 1;;
+
+
+let norme vect = sqrt(vect.vx**2. +. vect.vy**2.);;
+
+let distance p1 p2 = sqrt((p1.x -. p2.x) ** 2. +. (p1.y -. p2.y)**2.);;
+
+let ajoute p vect = 
+	begin
+			p.x <- p.x +. vect.vx;
+			p.y <- p.y +. vect.vy;
+	end;;
+			 
+let genere_personne x y etage sortie = {x = x; y = y; etage = etage; sortie = sortie};;
+
+let genere_population nombre etage = 
+	let rec aux n liste = 
+		if n = 0 then liste 
+		else let (a, b) = genere_coords () and s = genere_sortie () in
+			aux (n-1) ((genere_personne a b etage s)::liste)
+	
+	in aux nombre [];;
+
+let normaliser v = 
+	let n = norme v in 
+	{vx = v.vx/.n; vy = v.vy/.n};;
+
+let vecteur_position p = 
+	let x_s, y_s = coordonnees_sorties (conversion_sorties (p.sortie)) in
+	normaliser {vx = x_s -. p.x; vy = y_s -. p.y};;
+	
+
+
+
+
+
+let collision p1 p2 =
+	if distance p1 p2 > 2.*.csteRayon then false
+	else true;;
+
+let affiche_personne x y = (* affiche une personne*)
+	begin
+	set_color rouge;
+	fill_circle (int_of_float(x +. 12.)) (int_of_float(y +. 12.)) (int_of_float csteRayon);
+	end;;
+	
+let rec affiche_personnes l = match l with (* affiche une liste de personne *)
+	| [] -> ()
+	| t::q -> begin affiche_personne t.x t.y; affiche_personnes q end;;
+
+
