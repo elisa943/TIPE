@@ -44,16 +44,23 @@ let listeAdj = [| [1; 3]; [0; 4; 2]; [1; 5]; [0; 4]; [1; 3; 5]; [2; 4] |];;
 
 			(* ~~~~~ ImplŽmentation de la file de prioritŽ ~~~~~ *)
 
-type file_prio_element = {sommet: int; priorite: int};;
+type file_prio_element = {sommet: int; priorite: float};;
 type file_prio = file_prio_element list;;
 
-let rec file_prio_ajoute fp element = match fp with
-| [] -> List.rev (element::fp) 
-| t::q -> if element.priorite >= t.priorite then element::fp
-					else t::(file_prio_ajoute q element);; 
+(* renvoie true si il y a changement dans la file *)
+let file_prio_ajoute fp element = 
+	if !fp = [] then begin fp := [element]; false end 
+	else if element.priorite >= (List.hd !fp).priorite 
+		then begin fp := element::!fp; false end
+	else let rec aux f = match f with
+	| [] -> List.rev (element::f)
+	| t::q -> if element.priorite >= t.priorite then element::f
+					else t::(aux q)
+	in fp := aux !fp; true;; 
 
 let file_prio_extrait fp = 
-	(List.hd fp, List.tl fp);;
+	let t = List.hd !fp in 
+	fp := List.tl !fp; t;;
 
 let file_prio_vide fp = List.length fp = 0;;
 
@@ -103,14 +110,14 @@ let dijkstra listeAdj depart arrive
 				visite.(sommet) <- true;
 				if sommet <> arrivee then List.iter (fun (s, d) -> 
 					if not visite.(s) && s.priorite < distance
-		done;
+		done;;
 		
 			(* ~~~~~ Algorithme A* ~~~~~ *)
-
+(*
 type noeud = {mutable x: float; mutable y:float; cout:float; heuristique: float; voisins: noeud list};;
 
 let depart = {x = 0.; y = 0.; cout = 0.; heuristique = 0.; voisins = []};;
-
+*)
 (* Heuristique *)
 
 
@@ -119,28 +126,33 @@ let compareParHeuristique n1 n2 =
 	else if n1.heuristique = n2.heuristique then 0
 	else -1;;
 
-let cheminPlusCourt g depart arrivee = 
-	let file = ref [] in
-	let file_prio = filePrioritaireCreer compareParHeuristique in
-	begin
-		filePrioritaireAjouter file_prio depart;
-		while filePrioriteVide file_prio do
-				let element = filePrioriteDefiler file_prio in
-				if element.x = arrivee.x and element.y = arrivee.y then 
-					begin
-						 (* reconstituerChemin element 
-						 		terminer le programme *)
-					end
+(* listeAdj contient la liste d'adjacence accompagnŽe des distances aux sommets associŽs/connectŽs *)
+let aStar listeAdj depart arrivee heuristique = 
+	let n = List.length listeAdj in 
+	let predecesseur = Array.make n (-1) in 
+	let visite = Array.make n false in
+	let distance = Array.make n max_float in
+	let filePrio = ref [] in
+	let _ = file_prio_ajoute filePrio {sommet = depart; priorite = heuristique depart} in 
+		distance.(depart) <- 0.;
+		while not (file_prio_vide !filePrio) do
+				let sommet = file_prio_extrait filePrio in
+				visite.(sommet.sommet) <- true;
+				if sommet.sommet = arrivee then filePrio := []
 				else 
-					for i = 0 to List.length element.voisins -1 do
-						if not (filePrioritaireContenir_Cout file_prio (List.nth element.voisins i)
-						or List.mem (List.nth element.voisins i) !file) then 
-						(List.nth element.voisins i).cout = element.cout + 1;
-						(List.nth element.voisins i).heuristique = 
-					done
-		done
-	end;;
-		
+					List.iter (fun (voisin, d) -> if not (visite.(voisin)) then 
+					if file_prio_ajoute filePrio {sommet = voisin; priorite = distance.(sommet.sommet) +. d +. heuristique voisin} then
+					predecesseur.(voisin) <- sommet.sommet; 
+					distance.(voisin) <- distance.(sommet.sommet) +. d) (List.nth listeAdj sommet.sommet)
+		done;
+		let chemin = ref [arrivee] in 
+		let sommet = ref arrivee in
+		while !sommet <> depart do
+			sommet := predecesseur.(!sommet);
+			chemin := !sommet::!chemin;
+		done; !chemin;;		
+
+
 			(* ~~~~~ Fonctions ~~~~~ *)
 (* Page d'accueil *)
 let page_accueil () = 
@@ -223,7 +235,6 @@ let coordonnees x y = (* convertit les coordonnŽes (x, y) en coordonnŽes du tabl
 	let x = int_of_float x
 	and y = int_of_float y in 
 	((x - (x mod m))/m, (y - (y mod m))/m);;
-
 	
 let densite etage i j = 
 	let nombrePersonnesCellule = List.length etage.(i).(j) in 
@@ -272,9 +283,9 @@ let genere_chemin x y =
 			dMin := distance x y xS yS;
 			end
 	done;
-	[!iMin];;
+	[!iMin];; (* flag !! *)
 
-let genere_vitesse () = (Random.float 10.) +. 1.;; (* 4.*)
+let genere_vitesse () = (Random.float 3.) +. 1.;; (* 4.*)
 
 let genere_personne () = (* gŽnre une personne *)
 	let x, y = genere_coordonnees () in 
@@ -319,13 +330,15 @@ let affiche_etage etage = (* affiche etage + emplacement des personnes*)
 		initialisation_etage ();
 		Array.iter (fun l -> (Array.iter (fun cellule -> affiche_personnes cellule) l)) etage
 	end;; 
-	
+
+(*
 let affiche_vecteur p v = 
 	begin 
 		set_color vert;
 		moveto (int_of_float p.x) (int_of_float p.y);
 		lineto (int_of_float (p.x+.v.vx)) (int_of_float (p.y+.v.vy));
 	end;;
+*)
 
 		(* ~~~~~ Fonctions de dŽplacement ~~~~~ *) 
 let angles = 
@@ -352,13 +365,12 @@ let angles =
 	done; a;;
 *)
 
-let nouvelle_direction_si_collision p vect etage = 
+let nouvelle_direction_si_collision p vect etage = (* la fonction vŽrifie s'il y aura une collisition, si c'est le cas elle opre une rotation adaptŽe *)
 	try 
 		Array.iter (fun a -> 
 		let vx, vy = rotation a vect in
 		let (i, j) = coordonnees (p.x +. vx) (p.y +. vy) in 
-		if not (collision_dans_cellule i j etage p (p.x +. vx) (p.y +. vy)) then raise (DirectionTrouvee a)
-		else affiche_vecteur p vect)
+		if not (collision_dans_cellule i j etage p (p.x +. vx) (p.y +. vy)) then raise (DirectionTrouvee a))
 		angles; (0., 0.)
 	with DirectionTrouvee(a) -> rotation a vect;;
 
@@ -369,14 +381,14 @@ let rec deplacement_hasard p vect etage hasard =
 			p.x <- p.x +. vx;
 			p.y <- p.y +. vy;
 		end;
-	else 
+	else (* il faudrait gŽrer la notion de hasard/panique diffŽremment *)
 		let a = Random.float 180. in 
 		let vx, vy = rotation a vect in 
 		let i,j = coordonnees (p.x +. vect.vx) (p.y +. vect.vy) in
 		if not (collision_dans_cellule i j etage p (p.x +. vect.vx) (p.y +. vect.vy)) then
 			begin 
-			p.x <- p.x +. vx;
-			p.y <- p.y +. vy;
+				p.x <- p.x +. vx;
+				p.y <- p.y +. vy;
 			end
 		else deplacement_hasard p vect etage true;;
 
@@ -385,6 +397,9 @@ let vecteur_deplacement p = (* renvoie le vecteur dŽplacement d'une personne pon
 	let (xSommet, ySommet) = coordonneesSommets.(List.hd p.chemin) in 
 	let v = normaliser {vx = xSommet -. p.x; vy = ySommet -. p.y} in 
 		{vx = v.vx*.p.v; vy = v.vy*.p.v};; (* pondŽration ˆ modifier selon le rŽsultat *)
+
+
+(*
 
 let applique_deplacement_liste etage i j densiteEtage =
 	let rec aux l = match l with
@@ -404,24 +419,68 @@ let applique_deplacement_liste etage i j densiteEtage =
 					ind := false
 					end
 			(* les fonctions suivantes modifient les coordonnŽes de p *)
-			else 
-				begin
-					if tirage > densiteEtage.(i).(j) 
-					then deplacement_hasard p (vecteur_deplacement p) etage false
-					else deplacement_hasard p (vecteur_deplacement p) etage true
-				end;
+			else
+				deplacement_hasard p (vecteur_deplacement p) etage (tirage < densiteEtage.(i).(j));
 				let (i0, j0) = coordonnees p.x p.y in (* potentielles nouvelles coordonnŽes de p *)
 					if (i0 <> i) || (j0 <> j) then begin etage.(i0).(j0) <- p::etage.(i0).(j0); ind := false end
 		end;
 		if !ind then p::(aux q) else aux q
 	in etage.(i).(j) <- aux etage.(i).(j);;
+
+*)
+
+
+exception ChangementCellule;;
+
+let applique_deplacement_liste etage i j densiteEtage =
+	let rec aux l = match l with
+	| [] -> l
+	| p::q -> try
+		if List.length p.chemin = 0 then begin incr nombreEvacues; raise ChangementCellule end
+		else
+		let sommetARejoindre = List.hd p.chemin in
+		let xSommet, ySommet = coordonneesSommets.(sommetARejoindre) in
+		let tirage = Random.float 1. in
+		begin 
+			if distance p.x p.y xSommet ySommet < csteRayon && List.length p.chemin = 1 then (* proche du sommet final *)
+				begin 
+					p.x <- xSommet;
+					p.y <- ySommet;
+					p.chemin <- [];
+				end	
+			else if distance p.x p.y xSommet ySommet < float_of_int m (* proche du sommet ˆ rejoindre *)
+					 then p.chemin <- List.tl p.chemin
+			else deplacement_hasard p (vecteur_deplacement p) etage (tirage < densiteEtage.(i).(j));
+		end;
 		
+		begin (* si la personne a changŽ de cellule, il faut la supprimer de l'ancienne et l'ajouter dans la nouvelle *)
+			let (i0, j0) = coordonnees p.x p.y in
+			if (i0 <> i) || (j0 <> j) (* s'il y a un changement de cellule... *)
+				then begin etage.(i0).(j0) <- p::etage.(i0).(j0); raise ChangementCellule end
+			else p::(aux q)
+		end;
+		with ChangementCellule -> aux q
+	in etage.(i).(j) <- aux etage.(i).(j);;
+		
+
+let xS, yS = coordonneesSommets.(3);;
+List.hd etage.(0).(2);;
+let p = List.hd etage.(0).(2);;
+distance p.x p.y xS yS < float_of_int m;;
+let v = vecteur_deplacement p;;
+collision_dans_cellule 0 2 etage p (p.x +. v.vx) (p.y +. v.vy);;
+nouvelle_direction_si_collision p v etage;;
+let (i0, j0) = coordonnees p.x p.y;;
+let (i, j) = coordonnees (p.x +. v.vx) (p.y +. v.vy);;
+
+
 let applique_deplacement_etage etage densiteEtage = 
 	for i = 0 to n-1 do
 		for j = 0 to n-1 do
 			applique_deplacement_liste etage i j densiteEtage;
 		done
 	done;;
+
 
 	(* ~~~~~ Fonction main ~~~~~ *)
 	(*
@@ -466,9 +525,9 @@ let main etage =
 	
 	(* ~~~~~ Fonction main ~~~~~ *)
 let main etage = 
-	let nombrePersonnes = Array.length etage in
-	let densiteEtage = Array.make_matrix n n 0. in
 	let time = ref (Sys.time ()) in
+	let nombrePersonnes = 300 in
+	let densiteEtage = Array.make_matrix n n 0. in
 		(* simulation *)
 		try 
 			while true do
@@ -484,11 +543,41 @@ let main etage =
 				end
 			done;
 		(* page des rŽsultats *)
-		with Stop -> print_endline "the end"; print_float (Sys.time());;
+		with Stop -> print_endline "the end : "; print_float (Sys.time());;
 	
 (* ne pas oublier de tout Žvaluer car la variable nombreEvacues est globale *)
 
-let etage = genere_etage 150;;
+let etage = genere_etage 300;;
 main etage;;
 
+
+
+
+
+
 !nombreEvacues;;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
