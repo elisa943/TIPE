@@ -60,8 +60,24 @@ let file_prio_ajoute fp element =
 let file_prio_extrait fp = 
 	let t = List.hd !fp in 
 	fp := List.tl !fp; t;;
+	
+let file_prio_extrait_min fp = 
+	let listeInverse = List.rev !fp in 
+	let t = List.hd listeInverse in 
+	fp := List.rev (List.tl listeInverse); t;;
 
 let file_prio_vide fp = List.length fp = 0;;
+
+
+let f = ref [];;
+file_prio_ajoute f {sommet = 2; priorite = 5.};;
+file_prio_ajoute f {sommet = 2; priorite = 10.};;
+file_prio_ajoute f {sommet = 2; priorite = 88.};;
+file_prio_ajoute f {sommet = 2; priorite = 550.};;
+!f;;
+
+file_prio_extrait_min f;;
+!f;;
 
 			(* ~~~~~ Algorithme de Dijkstra ~~~~~ *)
 let listAdj_distances listeAdj = 
@@ -119,12 +135,13 @@ let dijkstra listeAdj depart arrivee =
 			chemin := predecesseur.(List.hd !chemin)::!chemin
 			done;
 		!chemin;;
-		;
+		
 		
 			(* ~~~~~ Algorithme A* ~~~~~ *)
+let distance x1 y1 x2 y2 = sqrt((x1 -. x2) ** 2. +. (y1 -. y2)**2.);;
 
 (* Heuristique *)
-let h i j = 
+let heuristique i j = 
 	let xi, yi = coordonneesSommets.(i) in 
 	let xj, yj = coordonneesSommets.(j) in 
 	distance xi yi xj yj;;
@@ -132,23 +149,26 @@ let h i j =
 (* listeAdj contient la liste d'adjacence dont les sommets sont accompagnés des distances
 aux sommets connectés *)
 (* a faire : remplacer le type enregistrement par un couple *)
-let aStar listeAdj depart arrivee heuristique = 
+let aStar listeAdj depart arrivee = 
 	let n = Array.length listeAdj in 
-	let predecesseur = Array.make n (-1) in 
-	let visite = Array.make n false in
+	let predecesseur = Array.make n (-1) in (* retrouver le chemin *)
+	let visite = Array.make n false in (* marquer les sommets déjà visités) *)
 	let distance = Array.make n max_float in
 	let filePrio = ref [] in
 	let _ = file_prio_ajoute filePrio {sommet = depart; priorite = heuristique depart arrivee} in 
 		distance.(depart) <- 0.;
 		while not (file_prio_vide !filePrio) do
-				let s = file_prio_extrait filePrio in
+				let s = file_prio_extrait_min filePrio in
 				visite.(s.sommet) <- true;
-				if s.sommet = arrivee then filePrio := []
+				if s.sommet = arrivee then 
+						filePrio := []
 				else 
 					List.iter (fun (voisin, d) -> if not visite.(voisin) then 
-					if file_prio_ajoute filePrio {sommet = voisin; priorite = distance.(s.sommet) +. d +. heuristique voisin arrivee} then
-					predecesseur.(voisin) <- s.sommet; 
-					distance.(voisin) <- distance.(s.sommet) +. d) 
+						let _ = file_prio_ajoute filePrio {sommet = voisin; priorite = distance.(s.sommet) +. d +. heuristique voisin arrivee}
+						in begin
+							predecesseur.(voisin) <- s.sommet; 
+							distance.(voisin) <- distance.(s.sommet) +. d;
+							end) 
 					listeAdj.(s.sommet)
 		done;
 		let chemin = ref [arrivee] in 
@@ -159,13 +179,12 @@ let aStar listeAdj depart arrivee heuristique =
 		done; !chemin;;	
 		
 let listeAdj = [| [1; 3]; [0; 4; 2]; [1; 5]; [0; 4]; [1; 3; 5]; [2; 4] |];;
-let l = [|[(1, 350.); (3, 700.)]; 
+let listeAdj = [|[(1, 350.); (3, 700.)]; 
 					[(0, 350.); (4, 700.); (2, 350.)]; 
 					[(1, 350.); (5, 700.)]; 
 					[(0, 700.); (4, 350.)]; 
 					[(1, 700.); (3, 350.); (5, 350.)]; 
 					[(2, 700.); (4, 350.)]|];;
-aStar l 0 2 h;;
 
 			(* ~~~~~ Fonctions ~~~~~ *)
 (* Page d'accueil *)
@@ -215,8 +234,6 @@ let initialisation_etage () =
 
 		(* ~~~~~ Fonctions de calcul ~~~~~ *)
 let norme vect = sqrt(vect.vx**2. +. vect.vy**2.);;
-
-let distance x1 y1 x2 y2 = sqrt((x1 -. x2) ** 2. +. (y1 -. y2)**2.);;
 
 let normaliser v = 
 	let n = norme v in 
@@ -271,7 +288,7 @@ let actualise_densite etage densiteEtage =
 		done
 	done;;
 
-(* fonction spécifique à la map flag *)	
+(* fonction spécifique à la map *)	
 let calcul_densite_aretes densiteEtage = 
 	let d = Array.make 7 0. in 
 	for i = 2 to 6 do
@@ -298,7 +315,20 @@ let calcul_densite_aretes densiteEtage =
 		done
 	done;d;;
 	
+	(* A REPRENDRE *)
+let calcul_densite_arete densiteEtage = 
+	let d = Array.make 7 0. in 
+	for i = 0 to 6 do
+		d.(i) <- List.map  
+	done;
 
+let nouvelle_densite_graphe listeAdj densiteEtage = 
+	let d = calcul_densite_arete densiteEtage in 
+	Array.mapi (fun l i ->  
+		List.map (fun j -> match ) 
+			l) 
+	listeAdj 	
+;;
 
 		(* ~~~~~ Fonctions de vérification ~~~~~ *)
 let dans_le_couloir x y = 
@@ -340,15 +370,19 @@ let genere_chemin x y =
 			dMin := distance x y xS yS;
 			end
 	done;
-	[!iMin];; (* flag !! *)
+	!iMin;; 
+	
+	(* flag !! *)
 
-
+let genere_chemin_astar x y = 
+	let iMin = genere_chemin x y in 
+	aStar listeAdj iMin 1;;
 
 let genere_vitesse () = (Random.float 3.) +. 1.;; (* 4.*)
 
 let genere_personne () = (* génère une personne *)
 	let x, y = genere_coordonnees () in 
-	let c = genere_chemin x y in 
+	let c = genere_chemin_astar x y in 
 	let v = genere_vitesse () in 
 	{x = x; y = y; v = v; chemin = c};;
 
@@ -580,7 +614,7 @@ let main etage =
 	(* ~~~~~ Fonction main ~~~~~ *)
 let main etage densiteEtage = 
 	let time = ref (Sys.time ()) in
-	let nombrePersonnes = 300 in
+	let nombrePersonnes = 200 in
 	let attente = 0.05 in
 		(* simulation *)
 		try 
@@ -603,13 +637,12 @@ let main etage densiteEtage =
 	(* ~~~~~ TESTS ~~~~~ *)
 (* ne pas oublier de tout évaluer car la variable nombreEvacues est globale *)
 let d = Array.make_matrix n n 0.;;
-let etage = genere_etage 300;;
+let etage = genere_etage 200;;
 affiche_etage etage;;
 
 main etage d;;
 !nombreEvacues;;
 
-initialisation_etage();;
 (* ATTENTION 
 Penser à d'abord effacer la sortie, évaluer tout ce qu'il y a avant TESTS, 
 puis appeler la fonction main. 
