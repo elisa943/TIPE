@@ -17,6 +17,7 @@ let gris = rgb 128 128 128;;
 (* Exceptions *)
 exception Stop;;
 exception DirectionTrouvee of float;;
+exception ChangementCellule;;
 
 (* Types *)
 type vecteur = {vx:float; vy:float};;
@@ -26,6 +27,7 @@ type personne = {mutable x:float; mutable y:float; mutable v:float; mutable chem
 let csteRayon = 8.;;
 let nombreEvacues = ref 0;;
 let nombreSorties = 3;;
+let sortiePrincipale = 0;;
 let n = 800/50;; (* nombre de cellules par ligne ou colonne *)
 let m = 50;; (* taille de la cellule *)
 let epsilon = 1e-10;;
@@ -67,17 +69,6 @@ let file_prio_extrait_min fp =
 	fp := List.rev (List.tl listeInverse); t;;
 
 let file_prio_vide fp = List.length fp = 0;;
-
-
-let f = ref [];;
-file_prio_ajoute f {sommet = 2; priorite = 5.};;
-file_prio_ajoute f {sommet = 2; priorite = 10.};;
-file_prio_ajoute f {sommet = 2; priorite = 88.};;
-file_prio_ajoute f {sommet = 2; priorite = 550.};;
-!f;;
-
-file_prio_extrait_min f;;
-!f;;
 
 			(* ~~~~~ Algorithme de Dijkstra ~~~~~ *)
 let listAdj_distances listeAdj = 
@@ -351,14 +342,19 @@ let rec genere_coordonnees () = (* génère des coordonnées se situant dans le cou
 	let y = Random.float (800. -. 2.*.csteRayon) in 
 		if dans_le_couloir (x+.csteRayon) (y+.csteRayon) then (x, y)
 		else genere_coordonnees ();;
+		
+let rec genere_coordonnees () = 
+	let x = Random.float (float_of_int (2*m)) in 
+	let y = Random.float (float_of_int (2*m)) in 
+	(x +. 350.*.float_of_int (Random.int 3), 
+	 y +. 700.*.float_of_int (Random.int 2));;
 
 (* idéalement, densiteAretes devrait être de la forme d'une matrice d'adjacence *) 
 let genere_chemin sommetDepart sommetArrivee densiteArete algo = 
 	algo sommetDepart sommetArrivee densiteArete;;
 	
-(* à modifier dans le futur : 
-pour l'instant, la fonction renvoie le chemin constitué du sommet le plus proche *)
-let genere_chemin x y = 
+(* renvoie le sommet le plus proche *)
+let sommetProche x y = 
 	let iMin = ref 0 in 
 	let xS, yS = coordonneesSommets.(0) in
 	let dMin = ref (distance x y xS yS) in
@@ -375,8 +371,9 @@ let genere_chemin x y =
 	(* flag !! *)
 
 let genere_chemin_astar x y = 
-	let iMin = genere_chemin x y in 
-	aStar listeAdj iMin 1;;
+	let s = sommetProche x y in 
+	List.tl (aStar listeAdj s sortiePrincipale);; (* flag *)
+
 
 let genere_vitesse () = (Random.float 3.) +. 1.;; (* 4.*)
 
@@ -434,18 +431,7 @@ let affiche_vecteur p v =
 *)
 
 		(* ~~~~~ Fonctions de déplacement ~~~~~ *) 
-let angles = 
-	let a = Array.make 7 0. in 
-	let j = ref 1 in
-	for i = 1 to 3 do
-		begin
-		a.(!j) <- 45. *. float_of_int i;
-		a.(!j + 1) <- -. a.(!j);
-		j := !j + 2;
-		end
-	done; a;;
 
-(*
 let angles = 
 	let a = Array.make 13 0. in 
 	let j = ref 1 in 
@@ -456,16 +442,49 @@ let angles =
 		j := !j + 2;
 		end;
 	done; a;;
-*)
+	
+
+(*
+let angles = 
+	let a = Array.make 7 0. in 
+	let j = ref 1 in
+	for i = 1 to 3 do
+		begin
+		a.(!j) <- 45. *. float_of_int i;
+		a.(!j + 1) <- -. a.(!j);
+		j := !j + 2;
+		end
+	done; a;;
+	
+
+
+let angles = 
+	let a = Array.make 19 0. in 
+	let j = ref 1 in 
+	for i = 1 to 9 do
+		begin
+		a.(!j) <- 15. *. float_of_int i;
+		a.(!j + 1) <- -. a.(!j);
+		j := !j + 2;
+		end;
+	done; a;;
+		*)
+
 
 let nouvelle_direction_si_collision p vect etage = (* la fonction vérifie s'il y aura une collisition, si c'est le cas elle opère une rotation adaptée *)
 	try 
 		Array.iter (fun a -> 
-		let vx, vy = rotation a vect in
-		let (i, j) = coordonnees (p.x +. vx) (p.y +. vy) in 
-		if not (collision_dans_cellule i j etage p (p.x +. vx) (p.y +. vy)) then raise (DirectionTrouvee a))
-		angles; (0., 0.)
+			let vx, vy = rotation a vect in
+			let (i, j) = coordonnees (p.x +. vx) (p.y +. vy) in 
+			if i < n && j < n then 
+			if not (collision_dans_cellule i j etage p (p.x +. vx) (p.y +. vy)) && dans_le_couloir (p.x +. vx) (p.y +. vy) 
+				then raise (DirectionTrouvee a))
+		angles; (0., 0.);
 	with DirectionTrouvee(a) -> rotation a vect;;
+
+
+
+
 
 let rec deplacement_hasard p vect etage hasard = 
 	if not hasard then 
@@ -497,8 +516,6 @@ let vecteur_deplacement p = (* renvoie le vecteur déplacement d'une personne pon
 	let v = normaliser {vx = xSommet -. p.x; vy = ySommet -. p.y} in 
 		{vx = v.vx*.p.v; vy = v.vy*.p.v};;
 
-exception ChangementCellule;;
-
 let applique_deplacement_liste etage i j densiteEtage =
 	let rec aux l = match l with
 	| [] -> l
@@ -515,7 +532,7 @@ let applique_deplacement_liste etage i j densiteEtage =
 					p.y <- ySommet;
 					p.chemin <- [];
 				end	
-			else if distance p.x p.y xSommet ySommet < float_of_int m (* proche du sommet à rejoindre *)
+			else if distance p.x p.y xSommet ySommet < float_of_int (m*9/10) (* proche du sommet à rejoindre *)
 					 then p.chemin <- List.tl p.chemin
 			else deplacement_hasard p (vecteur_deplacement p) etage (tirage < densiteEtage.(i).(j));
 		end;
@@ -580,10 +597,15 @@ let main etage =
 	*)
 	
 	(* ~~~~~ Fonction main ~~~~~ *)
-let main etage densiteEtage = 
+let main nombrePersonnes = 
+	let tailleMax = 200 in
+	let taillePopulation = ref (min tailleMax nombrePersonnes) in
+	
+	let densiteEtage = Array.make_matrix n n 0. in
+	let etage = genere_etage !taillePopulation in
+	
+	let attente = 0.02 in
 	let time = ref (Sys.time ()) in
-	let nombrePersonnes = 200 in
-	let attente = 0.05 in
 		(* simulation *)
 		try 
 			while true do
@@ -593,6 +615,9 @@ let main etage densiteEtage =
 					(*actualise_densite etage densiteEtage; *)
 					affiche_etage etage;
 					if !nombreEvacues = nombrePersonnes then raise Stop;
+					if !taillePopulation < nombrePersonnes then 
+						begin ajoute_personne etage; incr taillePopulation end;
+					
 					while Sys.time() -. !time < attente do () done; (* sleep *)
 					time := Sys.time();
 					synchronize ()
@@ -604,17 +629,30 @@ let main etage densiteEtage =
 	
 	(* ~~~~~ TESTS ~~~~~ *)
 (* ne pas oublier de tout évaluer car la variable nombreEvacues est globale *)
-let d = Array.make_matrix n n 0.;;
-let etage = genere_etage 200;;
-affiche_etage etage;;
-
-main etage d;;
+let nombrePersonnes = 300;;
+main nombrePersonnes;;
 !nombreEvacues;;
+
+(*
+let grapheEntier () = 
+	let listeAdj = Array.make_matrix n n [] in 
+	for i = 0 to n-1 do
+		for j = 0 to n-1 do
+			for k = -1 to 1 do
+				listeAdj.(i).(j) <- 
+			done;
+		done;
+	done; listeAdj
+
+*)
+
 
 (* ATTENTION 
 Penser à d'abord effacer la sortie, évaluer tout ce qu'il y a avant TESTS, 
 puis appeler la fonction main. 
 Sinon, cela fausse le temps renvoyé par main. 
+
+Limite de population en 1 fois : 200
 *)
 
 
@@ -630,23 +668,19 @@ nouvelle_direction_si_collision p v etage;;
 let (i0, j0) = coordonnees p.x p.y;;
 let (i, j) = coordonnees (p.x +. v.vx) (p.y +. v.vy);;
 
+let a = angles.(1);;
+let vx, vy = rotation a v;;
+let k, l = coordonnees (p.x +. vx) (p.y +. vy);;
+collision_dans_cellule k l etage p (p.x +. vx) (p.y +. vy);;
+
+
+applique_deplacement_liste etage 1 15 d;;
+d.(1).(15);;
+let xS, yS = coordonneesSommets.(1);;
+let p = List.nth etage.(1).(15) 4;;
+distance p.x p.y xS yS < float_of_int m;;
+let v = vecteur_deplacement p;;
+deplacement_hasard p v etage false;;
+nouvelle_direction_si_collision p v etage ;;
 
 *)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

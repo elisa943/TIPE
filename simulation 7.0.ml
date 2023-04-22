@@ -17,6 +17,7 @@ let gris = rgb 128 128 128;;
 (* Exceptions *)
 exception Stop;;
 exception DirectionTrouvee of float;;
+exception ChangementCellule;;
 
 (* Types *)
 type vecteur = {vx:float; vy:float};;
@@ -67,17 +68,6 @@ let file_prio_extrait_min fp =
 	fp := List.rev (List.tl listeInverse); t;;
 
 let file_prio_vide fp = List.length fp = 0;;
-
-
-let f = ref [];;
-file_prio_ajoute f {sommet = 2; priorite = 5.};;
-file_prio_ajoute f {sommet = 2; priorite = 10.};;
-file_prio_ajoute f {sommet = 2; priorite = 88.};;
-file_prio_ajoute f {sommet = 2; priorite = 550.};;
-!f;;
-
-file_prio_extrait_min f;;
-!f;;
 
 			(* ~~~~~ Algorithme de Dijkstra ~~~~~ *)
 let listAdj_distances listeAdj = 
@@ -456,6 +446,18 @@ let angles =
 		j := !j + 2;
 		end;
 	done; a;;
+	
+let angles = 
+	let a = Array.make 19 0. in 
+	let j = ref 1 in 
+	for i = 1 to 9 do
+		begin
+		a.(!j) <- 15. *. float_of_int i;
+		a.(!j + 1) <- -. a.(!j);
+		j := !j + 2;
+		end;
+	done; a;;
+	
 *)
 
 let nouvelle_direction_si_collision p vect etage = (* la fonction vérifie s'il y aura une collisition, si c'est le cas elle opère une rotation adaptée *)
@@ -463,7 +465,7 @@ let nouvelle_direction_si_collision p vect etage = (* la fonction vérifie s'il y
 		Array.iter (fun a -> 
 		let vx, vy = rotation a vect in
 		let (i, j) = coordonnees (p.x +. vx) (p.y +. vy) in 
-		if not (collision_dans_cellule i j etage p (p.x +. vx) (p.y +. vy)) then raise (DirectionTrouvee a))
+		if not (collision_dans_cellule i j etage p (p.x +. vx) (p.y +. vy)) && dans_le_couloir (p.x +. vx) (p.y +. vy) then raise (DirectionTrouvee a))
 		angles; (0., 0.)
 	with DirectionTrouvee(a) -> rotation a vect;;
 
@@ -496,8 +498,6 @@ let vecteur_deplacement p = (* renvoie le vecteur déplacement d'une personne pon
 	let (xSommet, ySommet) = coordonneesSommets.(List.hd p.chemin) in 
 	let v = normaliser {vx = xSommet -. p.x; vy = ySommet -. p.y} in 
 		{vx = v.vx*.p.v; vy = v.vy*.p.v};;
-
-exception ChangementCellule;;
 
 let applique_deplacement_liste etage i j densiteEtage =
 	let rec aux l = match l with
@@ -611,6 +611,24 @@ affiche_etage etage;;
 main etage d;;
 !nombreEvacues;;
 
+etage.(1).(2);;
+
+
+
+(*
+let grapheEntier () = 
+	let listeAdj = Array.make_matrix n n [] in 
+	for i = 0 to n-1 do
+		for j = 0 to n-1 do
+			for k = -1 to 1 do
+				listeAdj.(i).(j) <- 
+			done;
+		done;
+	done; listeAdj
+
+*)
+
+
 (* ATTENTION 
 Penser à d'abord effacer la sortie, évaluer tout ce qu'il y a avant TESTS, 
 puis appeler la fonction main. 
@@ -632,16 +650,6 @@ let (i, j) = coordonnees (p.x +. v.vx) (p.y +. v.vy);;
 
 
 *)
-
-
-
-
-
-
-
-
-
-
 
 
 
