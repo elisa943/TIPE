@@ -70,7 +70,7 @@ let file_prio_extrait_min fp =
 
 let file_prio_vide fp = List.length fp = 0;;
 
-			(* ~~~~~ Algorithme de Dijkstra ~~~~~ 
+			(* ~~~~~ Algorithme de Dijkstra ~~~~~ *)
 let listAdj_distances listeAdj = 
 Array.mapi (fun i l -> let i0, j0 = coordonneesSommets.(i) in
 	List.map (fun s -> let iS, jS = coordonneesSommets.(s) in (s,distance i0 j0 iS jS)) l) 
@@ -127,7 +127,6 @@ let dijkstra listeAdj depart arrivee =
 			done;
 		!chemin;;
 		
-		*)
 		
 			(* ~~~~~ Algorithme A* ~~~~~ *)
 let distance x1 y1 x2 y2 = sqrt((x1 -. x2) ** 2. +. (y1 -. y2)**2.);;
@@ -212,9 +211,6 @@ let initialisation_etage () =
 				fill_rect (i*350) (j*700) 100 100;
 			done
 		done;
-		set_color vert;
-		fill_rect 0 700 100 100;
-		
 		set_color black;
 		for i = 0 to n-1 do
 			moveto (i*m) 0;
@@ -224,8 +220,6 @@ let initialisation_etage () =
 			moveto 0 (i*m);
 			lineto 800 (i*m);
 		done;
-
-		
 		
 	end;;
 
@@ -373,7 +367,7 @@ let sommetProche x y =
 			end
 	done;
 	!iMin;; 
-
+	
 	(* flag !! *)
 
 let genere_chemin_astar x y = 
@@ -438,8 +432,6 @@ let affiche_vecteur p v =
 
 		(* ~~~~~ Fonctions de déplacement ~~~~~ *) 
 
-
-
 let angles = 
 	let a = Array.make 13 0. in 
 	let j = ref 1 in 
@@ -450,8 +442,22 @@ let angles =
 		j := !j + 2;
 		end;
 	done; a;;
+	
 
 (*
+let angles = 
+	let a = Array.make 7 0. in 
+	let j = ref 1 in
+	for i = 1 to 3 do
+		begin
+		a.(!j) <- 45. *. float_of_int i;
+		a.(!j + 1) <- -. a.(!j);
+		j := !j + 2;
+		end
+	done; a;;
+	
+
+
 let angles = 
 	let a = Array.make 19 0. in 
 	let j = ref 1 in 
@@ -462,8 +468,8 @@ let angles =
 		j := !j + 2;
 		end;
 	done; a;;
-		
-*)
+		*)
+
 
 let nouvelle_direction_si_collision p vect etage = (* la fonction vérifie s'il y aura une collisition, si c'est le cas elle opère une rotation adaptée *)
 	try 
@@ -476,19 +482,30 @@ let nouvelle_direction_si_collision p vect etage = (* la fonction vérifie s'il y
 		angles; (0., 0.);
 	with DirectionTrouvee(a) -> rotation a vect;;
 
-let rec deplacement_hasard p vect etage = 
-	let vx, vy = nouvelle_direction_si_collision p vect etage in
-	begin
-		p.x <- p.x +. vx;
-		p.y <- p.y +. vy;
-	end;;
+let rec deplacement_hasard p vect etage hasard = 
+	if not hasard then 
+		let vx, vy = nouvelle_direction_si_collision p vect etage in
+		begin
+			p.x <- p.x +. vx;
+			p.y <- p.y +. vy;
+		end;
+	else (* il faudrait gérer la notion de hasard/panique différemment *)
+		let a = Random.float 180. in 
+		let vx, vy = rotation a vect in 
+		let i,j = coordonnees (p.x +. vect.vx) (p.y +. vect.vy) in
+		if not (collision_dans_cellule i j etage p (p.x +. vect.vx) (p.y +. vect.vy)) then
+			begin 
+				p.x <- p.x +. vx;
+				p.y <- p.y +. vy;
+			end
+		else deplacement_hasard p vect etage true;;
 
-(* renvoie le vecteur déplacement d'une personne pondéré par son taux panique 
-let vecteur_deplacement p = 
+
+let vecteur_deplacement p = (* renvoie le vecteur déplacement d'une personne pondéré par son taux panique *)
 	let (xSommet, ySommet) = coordonneesSommets.(List.hd p.chemin) in 
 	let v = normaliser {vx = xSommet -. p.x; vy = ySommet -. p.y} in 
 		{vx = v.vx*.p.v; vy = v.vy*.p.v};; (* pondération à modifier selon le résultat *)
-(* flag *) *)
+(* flag *)
 
 let vecteur_deplacement p = (* renvoie le vecteur déplacement d'une personne pondéré par son taux panique *)
 	let (xSommet, ySommet) = coordonneesSommets.(List.hd p.chemin) in 
@@ -508,6 +525,7 @@ let applique_deplacement_liste etage i j densiteEtage =
 		else
 		let sommetARejoindre = List.hd p.chemin in
 		let xSommet, ySommet = coordonneesSommets.(sommetARejoindre) in
+		let tirage = Random.float 1. in
 		begin 
 			if distance p.x p.y xSommet ySommet < csteRayon && List.length p.chemin = 1 then (* proche du sommet final *)
 				begin 
@@ -517,7 +535,7 @@ let applique_deplacement_liste etage i j densiteEtage =
 				end	
 			else if distance p.x p.y xSommet ySommet < rayonDeRotation (* proche du sommet à rejoindre *)
 					 then p.chemin <- List.tl p.chemin
-			else deplacement_hasard p (vecteur_deplacement p) etage;
+			else deplacement_hasard p (vecteur_deplacement p) etage (tirage < densiteEtage.(i).(j));
 		end;
 		
 		begin (* si la personne a changé de cellule, il faut la supprimer de l'ancienne et l'ajouter dans la nouvelle *)
@@ -528,6 +546,7 @@ let applique_deplacement_liste etage i j densiteEtage =
 		end;
 		with ChangementCellule -> aux q
 	in etage.(i).(j) <- aux etage.(i).(j);;
+
 
 let applique_deplacement_etage etage densiteEtage = 
 	for i = 0 to n-1 do
@@ -611,7 +630,7 @@ let main nombrePersonnes =
 	
 	(* ~~~~~ TESTS ~~~~~ *)
 (* ne pas oublier de tout évaluer car la variable nombreEvacues est globale *)
-let nombrePersonnes = 800;;
+let nombrePersonnes = 850;;
 main nombrePersonnes;;
 !nombreEvacues;;
 
