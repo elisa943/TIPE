@@ -24,35 +24,18 @@ type vecteur = {vx:float; vy:float};;
 type personne = {mutable x:float; mutable y:float; mutable v:float; mutable chemin:int list};;
 
 (* Variables Globales *)
-let csteRayon = 5.;;
+let csteRayon = 4.;;
 let nombreEvacues = ref 0;;
 let nombreSorties = 3;;
 let sortiePrincipale = 0;;
 let n = 800/50;; (* nombre de cellules par ligne ou colonne *)
 let m = 50;; (* taille de la cellule *)
 let epsilon = 1e-10;;
-let alpha = 4.5;;
+let alpha = 4.;;
 let coordonneesSommets = 
 [| (50., 750.); (400., 750.); (750., 750.); (50., 50.); (400., 50.); (750., 50.) |];;
 let tailleMax = 450;;
-
-(* échelles : 
-- 10 = 1m 
-- 800 = 80m 
-vitesses : 
-- de marche : 3-5 km/h = 
-- de course : 
-*)
-			
-			(* ~~~~~ Structure de graphe ~~~~~ *)
-(* 
-- Liste d'arêtes
-- Liste d'adjacence à privilégier pour Dijsktra
-- Matrice d'adjacence
-*)
-
-let listeAdj = [| [1; 3]; [0; 4; 2]; [1; 5]; [0; 4]; [1; 3; 5]; [2; 4] |];;
-
+let nMAX = m*m/4;;
 			(* ~~~~~ Implémentation de la file de priorité ~~~~~ *)
 type tas = {mutable tab : (int * float) array; mutable taille : int};; (* tableau dynamique *)
 
@@ -113,26 +96,6 @@ let tasExtrait tas = (* extrait le minimum *)
 		tasTasseDown tas 0;
 	end; e;;
 
-(*
-let t = tasInitialise ();;
-tasAjoute t (11, 209.);;
-tasAjoute t (1, 10.);;
-tasAjoute t (3, 656.);;
-tasAjoute t (7, 1.);;
-tasAjoute t (9, 2.);;
-tasExtrait t;;
-t;;
-let fg, fd = fils 0;;
-let i  = 0;;
-let fMin = if fg >= t.taille then 
-									if fd < t.taille then fd else i
-								else if fd >= t.taille then fg else
-								let (_, p1) = t.tab.(fg) in
-								let (_, p2) =  t.tab.(fd) in
-								if p1 > p2 then fd else fg;;
-t.tab.(i) > t.tab.(fMin);;
-
-*)
 			(* ~~~~~ Algorithme A* ~~~~~ *)
 let distance x1 y1 x2 y2 = sqrt((x1 -. x2) ** 2. +. (y1 -. y2)**2.);;
 
@@ -180,35 +143,6 @@ let listeAdj = [|[(1, 350.); (3, 700.)];
 					[(1, 700.); (3, 350.); (5, 350.)]; 
 					[(2, 700.); (4, 350.)]|];;
 
-aStar listeAdj 2 0;;
-
-			(* ~~~~~ Fonctions ~~~~~ *)
-			
-let initialisation_etage () = 
-	begin
-		set_color blanc;
-		fill_rect 0 0 800 800;
-		set_color gris;
-		fill_rect 100 100 250 600;
-		fill_rect 450 100 250 600;
-		set_color bleu;
-		for i = 0 to 2 do
-			for j = 0 to 1 do
-				fill_rect (i*350) (j*700) 100 100;
-			done
-		done;
-		set_color black;
-		for i = 0 to n-1 do
-			moveto (i*m) 0;
-			lineto (i*m) 800;
-		done;
-		for i = 0 to n-1 do
-			moveto 0 (i*m);
-			lineto 800 (i*m);
-		done;
-		
-	end;;
-
 		(* ~~~~~ Fonctions de calcul ~~~~~ *)
 let norme vect = sqrt(vect.vx**2. +. vect.vy**2.);;
 
@@ -234,6 +168,22 @@ let rotation theta vect = (* theta en degré *)
 		if abs y' < epsilon then (x', 0.)
 		else (x', y');;
 
+let coordonnees x y = (* convertit les coordonnées (x, y) en coordonnées du tableau de l'étage *)
+	let x = int_of_float x
+	and y = int_of_float y in 
+	((x - (x mod m))/m, (y - (y mod m))/m);;
+
+let d etage i j = (* calcul de la densité dans le périmètre de sécurité *)
+	let densite = ref 0 in 
+	let k = ref 0 in
+	for p = max 0 (i-1) to min (i+1) (n-1) do
+		for q = max 0 (j-1) to min (j+1) (n-1) do
+			incr k;
+			densite := !densite + (List.length etage.(p).(q));
+		done;
+	done; (!densite, !k);;
+
+
 (*
 let projection vx vy axe = match axe with 
 | "abs" -> (vx, 0.)
@@ -249,10 +199,6 @@ let gradient f x y =
 	(derivee f x y 0, derivee f x y 1);;
 *)
 
-let coordonnees x y = (* convertit les coordonnées (x, y) en coordonnées du tableau de l'étage *)
-	let x = int_of_float x
-	and y = int_of_float y in 
-	((x - (x mod m))/m, (y - (y mod m))/m);;
 
 (* flag 
 let densite etage i j = 
@@ -306,15 +252,12 @@ let nouvelle_densite_graphe listeAdj densiteEtage =
 		List.map (fun j -> match ) 
 			l) listeAdj;; *)
 
-		(* ~~~~~ Fonctions de vérification ~~~~~ *)
+		(* ~~~~~ Fonctions de vérifications/collisions ~~~~~ *)
 
 let bords x y = (x >= 800.) || (x<= 0.) || (y >= 800.) || (y <= 0.)
 || (((100. <= x && x <= 350.) || (450. <= x && x <= 700.))
 	&& (100. < y && y < 700.));;
- 
-let arrivee_etage etage = Array.for_all (fun l -> Array.for_all (fun cellule -> List.length cellule = 0) l) etage;;
 
-		(* ~~~~~ Fonction de collision ~~~~~  *)
 let collision x1 y1 x2 y2 = (* collision entre deux personnes *)
 	(distance x1 y1 x2 y2) < 2.*.csteRayon;;
 
@@ -334,7 +277,7 @@ let rec genere_coordonnees i j etage = (* génère des coordonnées dans un des som
 		if collision_dans_cellule2 i j etage xp yp then genere_coordonnees i j etage
 		else (xp, yp);;
 
-(* idéalement, densiteAretes devrait être de la forme d'une matrice d'adjacence *) 
+(* A améliorer... *) 
 let genere_chemin sommetDepart sommetArrivee densiteArete algo = 
 	algo sommetDepart sommetArrivee densiteArete;;
 	
@@ -352,29 +295,33 @@ let sommetProche x y =
 			end
 	done;
 	!iMin;; 
-	
 	(* flag !! *)
-
+	
 let genere_chemin_astar x y = 
 	let s = sommetProche x y in 
 	List.tl (aStar listeAdj s sortiePrincipale);; (* flag *)
 
-let genere_vitesse () = (3. +. (Random.float 2.))*.alpha;;
+let v_course () = (10. +. (Random.float 3.))*.10./.3.6;;
 
-let genere_personne etage = (* génère une personne *)
+let v_marche () = (3. +. (Random.float 2.))*.10./.3.6;;
+		
+let determine_v i j etage = 
+		let (densite, k) = d etage i j in 
+		if densite = 1 then v_course ()
+		else v_course()*.(1.-.(float_of_int densite)/.float_of_int (nMAX*k));; 
+
+let genere_personne etage =
 	let i = Random.int 3 in 
 	let j = Random.int 2 in 
 	let x, y = genere_coordonnees i j etage in 
-	let c = genere_chemin_astar x y in 
-	let v = genere_vitesse () in 
-	{x = x; y = y; v = v; chemin = c};;
+	{x = x; y = y; v = v_marche(); chemin = genere_chemin_astar x y};;
 
 let rec ajoute_personne etage = 
 	let p = genere_personne etage in 
 	let (i, j) = coordonnees p.x p.y in 
 	etage.(i).(j) <- p::etage.(i).(j);;	
 	
-let genere_etage nombrePersonnes = (* on divise la map de 800x800 en cellules de taille 50*50 *)
+let genere_etage nombrePersonnes =
 	let etage = Array.make_matrix n n [] in 
 	for i = 0 to nombrePersonnes-1 do
 		ajoute_personne etage;
@@ -382,6 +329,30 @@ let genere_etage nombrePersonnes = (* on divise la map de 800x800 en cellules de
 	etage;;
 
 		(* ~~~~~ Fonctions d'affichage ~~~~~ *)
+let initialisation_etage () = 
+	begin
+		set_color blanc;
+		fill_rect 0 0 800 800;
+		set_color gris;
+		fill_rect 100 100 250 600;
+		fill_rect 450 100 250 600;
+		set_color bleu;
+		for i = 0 to 2 do
+			for j = 0 to 1 do
+				fill_rect (i*350) (j*700) 100 100;
+			done
+		done;
+		set_color black;
+		for i = 0 to n-1 do
+			moveto (i*m) 0;
+			lineto (i*m) 800;
+		done;
+		for i = 0 to n-1 do
+			moveto 0 (i*m);
+			lineto 800 (i*m);
+		done;
+	end;;
+
 let affiche_personne p = (* affiche une personne*)
 	begin
 	set_color rouge;
@@ -390,15 +361,6 @@ let affiche_personne p = (* affiche une personne*)
 
 let rec affiche_personnes l = (* affiche une liste de personne *)
 	List.iter (fun p -> affiche_personne p) l;;
-
-let supprime_personne p = (* supprime une personne *)
-	begin
-	set_color blanc;
-	fill_circle (int_of_float(p.x)) (int_of_float(p.y)) (int_of_float csteRayon);
-	end;;
-
-let rec supprime_personnes l = (* supprime une liste de personne *)
-	List.iter (fun p -> supprime_personne p) l;;
 
 let affiche_etage etage = (* affiche etage + emplacement des personnes*)
 	begin
@@ -417,6 +379,27 @@ let affiche_vecteur p v =
 
 		(* ~~~~~ Fonctions de déplacement ~~~~~ *) 
 
+let modifie_vitesse_etage etage = 
+	for i = 0 to n-1 do
+		for j = 0 to n-1 do
+			if List.length etage.(i).(j) > 0 then 
+				let v = determine_v i j etage/.alpha in 
+				List.iter (fun p -> p.v <- v) etage.(i).(j)
+		done;
+	done;;
+
+(*
+let angles = 
+	let a = Array.make 19 0. in 
+	let j = ref 1 in 
+	for i = 1 to 9 do
+		begin
+		a.(!j) <- 15. *. float_of_int i;
+		a.(!j + 1) <- -. a.(!j);
+		j := !j + 2;
+		end;
+	done; a;;
+*)
 let angles = 
 	let a = Array.make 13 0. in 
 	let j = ref 1 in 
@@ -428,18 +411,9 @@ let angles =
 		end;
 	done; a;;
 
-let angles = 
-	let a = Array.make 19 0. in 
-	let j = ref 1 in 
-	for i = 1 to 9 do
-		begin
-		a.(!j) <- 15. *. float_of_int i;
-		a.(!j + 1) <- -. a.(!j);
-		j := !j + 2;
-		end;
-	done; a;;
+
 	
-let vecteur_deplacement p = (* renvoie le vecteur déplacement d'une personne *)
+let vecteur_vitesse p = (* renvoie le vecteur vitesse d'une personne *)
 	let (xSommet, ySommet) = coordonneesSommets.(List.hd p.chemin) in 
 	let v = normaliser {vx = xSommet -. p.x; vy = ySommet -. p.y} in 
 		{vx = v.vx*.p.v; vy = v.vy*.p.v};;
@@ -476,10 +450,10 @@ let applique_deplacement_liste etage i j =
 					p.y <- ySommet;
 					p.chemin <- [];
 				end	
-					 (* proche du sommet à rejoindre *)
+					 (* proche d'un sommet intermédiaire *)
 			else if distance p.x p.y xSommet ySommet < rayonDeRotation 
 					 then p.chemin <- List.tl p.chemin
-			else let vecteurOptimal = vecteur_deplacement p in 
+			else let vecteurOptimal = vecteur_vitesse p in 
 					 let vx, vy = vecteur_rotation p vecteurOptimal etage in 
 					 begin p.x <- p.x +. vx; p.y <- p.y +. vy end;
 		end;
@@ -503,7 +477,6 @@ let applique_deplacement_etage etage =
 	(* ~~~~~ Fonction main ~~~~~ *)
 let main nombrePersonnes = 
 	let taillePopulation = ref (min tailleMax nombrePersonnes) in
-	let densiteEtage = Array.make_matrix n n 0. in
 	let etage = genere_etage !taillePopulation in
 	
 	let attente = 0.5/.alpha in (* correspond à 1s *)
@@ -513,6 +486,7 @@ let main nombrePersonnes =
 			while true do
 				begin
 					auto_synchronize false;
+					modifie_vitesse_etage etage;
 					applique_deplacement_etage etage;
 					affiche_etage etage;
 					if !nombreEvacues = nombrePersonnes then raise Stop;
@@ -527,12 +501,12 @@ let main nombrePersonnes =
 				end
 			done;
 		(* page des résultats *)
-		with Stop -> print_endline "the end : "; print_float (Sys.time());;
+		with Stop -> print_float (Sys.time());;
 
 	
 	(* ~~~~~ TESTS ~~~~~ *)
 (* ne pas oublier de tout évaluer car la variable nombreEvacues est globale *)
-let nombrePersonnes = 1100;;
+let nombrePersonnes = 1500;;
 main nombrePersonnes;;
 !nombreEvacues;;
 
